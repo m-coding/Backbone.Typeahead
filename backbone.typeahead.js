@@ -142,25 +142,27 @@
       this.$input.val('');
     },
     // Pull the value from the search input and re-render the matched models
-    //Added Ajax support, collection should have a url
-    searchInput: function () {
-        if (_.isFunction(this.collection.url)) {
+    // Added Ajax support, collection should have a url
+    searchInput: _.debounce(function () { // Add throttle to limit ajax requests
+        var val = this.$input.val();
+        this.collection.reset(); // Clear out old results
+        if (val.length > 0 && this.collection.url && this.collection.api) {
+            this.collection.api.q = val;
             this.collection.fetch({
-                data: $.param({ key: this.$input.val() })
+                data: $.param(this.collection.api),
+                error: this.collection.apiError
             }).done(this._onFetchComplete.bind(this));
         }
         else {
-            this.results = this.search(this.$input.val()).slice(0, this.options.limit);
+            this.results = this.search(val).slice(0, this.options.limit);
             this.rerender(this.results);
         }
-    },
-
-    //@private callback
+    }, 500),
+    // @private callback
     _onFetchComplete: function (result) {
         this.results = this.collection.toArray();
         this.rerender(this.results);
     },
-
     select: function() {
       // TODO This may go wrong with different templates
       var index = this.$menu.find('.active').index();
