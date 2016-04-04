@@ -83,6 +83,8 @@
       // Backbone 1.1 no longer binds options to this by default
       this.options = options;
 
+      this.$preload = $('#typeahead-preload');
+
       // TODO Listen to changes on the collection
     },
     // Models were emptied by the preInitialization function
@@ -99,6 +101,7 @@
       this.mousedover = false; // Is the mouse over the typeahead (incl. menu)?
     },
     template: '<input type="text" class="form-control" placeholder="Search" /><ul class="dropdown-menu"></ul>',
+    preload: '<li id="typeahead-preload"><a>Loading...</a></li>',
     nativeEvents: {
       'keyup': 'keyup',
       'keypress': 'keypress',
@@ -145,7 +148,11 @@
     // Added Ajax support, collection should have a url
     searchInput: _.debounce(function () { // Add throttle to limit ajax requests
         var val = this.$input.val();
-        this.collection.reset(); // Clear out old results
+
+        // Display preloader message
+        if(this.$preload.length === 0) this.$menu.prepend(this.preload);
+
+        // Make a new ajax request if url and api is setup
         if (val.length > 0 && this.collection.url && this.collection.api) {
             this.collection.api.q = val;
             this.collection.fetch({
@@ -157,7 +164,11 @@
             this.results = this.search(val).slice(0, this.options.limit);
             this.rerender(this.results);
         }
-    }, 500),
+
+        // Hide if the search box is empty
+        if(val.length === 0) this.hide();
+
+    }, 400),
     // @private callback
     _onFetchComplete: function (result) {
         this.results = this.collection.toArray();
@@ -166,15 +177,32 @@
     select: function() {
       // TODO This may go wrong with different templates
       var index = this.$menu.find('.active').index();
+      if(index === -1) {
+        var keys = this.collection.pluck(this.options.key);
+        index = keys.indexOf(this.$input.val());
+      }
+
       this.selectModel(this.results[index]);
     },
     selectModel: function(model) {
-      // Update the input field with the key attribute of the select model
-      this.$input.val(model.get(this.options.key));
+      var key = this.options.key;
+
+      // Run only if there is model available
+      if(model) {
+        var value = model.get(key);
+
+        // Update the input field with the key attribute of the select model
+        this.$input.val(value);
+
+        // TODO What other parameters should be in the trigger?
+        this.trigger('selected', model, this.collection);
+      } else {
+        this.trigger('selected', this.collection);
+      }
+
       // Hide the menu
       this.hide();
-      // TODO What other parameters should be in the trigger?
-      this.trigger('selected', model, this.collection);
+
       // Empty the results
       this.results = [];
     },
@@ -195,7 +223,7 @@
         case 13: // Enter
           // TODO shown needs to be returned to its original function (as an
           // indicator of whether the menu is currently displayed or not)
-          if (!this.shown) {return;}
+          if (this.$input.val().length === 0) {return;}
           this.select();
           break;
         case 27: // escape
